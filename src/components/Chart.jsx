@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
+import { SubChart } from "./SubChart";
+import { UltimateMacdChart } from "./UltimateMacdChart";
+import logoCarlos from "../assets/logo-carlos.png";
 
 const INDICATORS = [
   { id: "ma", name: "Media Móvil (MA)", periods: [9, 20, 50, 200] },
@@ -14,6 +17,15 @@ const INDICATORS = [
   { id: "rsi", name: "RSI", period: 14 },
   { id: "macd", name: "MACD", periods: [12, 26, 9] },
   { id: "stoch", name: "Estocástico", periods: [14, 3, 3] },
+  {
+    id: "ultimateMacd",
+    name: "Ultimate MACD",
+    config: {
+      fastLength: 12,
+      slowLength: 26,
+      signalLength: 9,
+    },
+  },
 ];
 
 const COLORS = {
@@ -23,13 +35,50 @@ const COLORS = {
   rsi: "#E91E63",
   macd: ["#2196F3", "#FF5252", "#4CAF50"],
   stoch: ["#FF4081", "#536DFE"],
+  ultimateMacd: {
+    macdUp: "#00ff00", // lime
+    macdDown: "#ff0000", // red
+    signal: "#ffff00", // yellow
+    histUp: "#00ffff", // aqua
+    histUpDim: "#0000ff", // blue
+    histDownDim: "#800000", // maroon
+    histDown: "#ff0000", // red
+  },
 };
 
 export function Chart({ data, interval }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef({});
-  const [activeIndicators, setActiveIndicators] = useState([]);
+
+  // Inicializar activeIndicators desde localStorage
+  const [activeIndicators, setActiveIndicators] = useState(() => {
+    const saved = localStorage.getItem("activeIndicators");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Mapear los IDs guardados a los objetos completos de indicadores
+      return INDICATORS.filter((indicator) =>
+        parsed.some((savedIndicator) => savedIndicator.id === indicator.id)
+      );
+    }
+    return [];
+  });
+
+  const [subChartData, setSubChartData] = useState({
+    rsi: null,
+    macd: null,
+    stoch: null,
+    ultimateMacd: null,
+  });
+
+  // Formatear los datos una vez y usarlos en todas partes
+  const formattedData = data.map((point) => ({
+    time: point[0] / 1000,
+    open: point[1],
+    high: point[2],
+    low: point[3],
+    close: point[4],
+  }));
 
   // Función para calcular indicadores
   const calculateIndicators = (prices, indicator) => {
@@ -87,23 +136,135 @@ export function Chart({ data, interval }) {
           losses.push(difference < 0 ? -difference : 0);
         }
 
-        const calculateRS = (index) => {
-          if (index < rsiPeriod) return null;
-          const avgGain =
-            gains
-              .slice(index - rsiPeriod + 1, index + 1)
-              .reduce((a, b) => a + b) / rsiPeriod;
-          const avgLoss =
-            losses
-              .slice(index - rsiPeriod + 1, index + 1)
-              .reduce((a, b) => a + b) / rsiPeriod;
-          return avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-        };
+        let avgGain =
+          gains.slice(1, rsiPeriod + 1).reduce((a, b) => a + b) / rsiPeriod;
+        let avgLoss =
+          losses.slice(1, rsiPeriod + 1).reduce((a, b) => a + b) / rsiPeriod;
 
-        return prices.map((_, index) => calculateRS(index));
+        return prices
+          .map((_, i) => {
+            if (i < rsiPeriod) return null;
+
+            if (i > rsiPeriod) {
+              avgGain = (avgGain * (rsiPeriod - 1) + gains[i]) / rsiPeriod;
+              avgLoss = (avgLoss * (rsiPeriod - 1) + losses[i]) / rsiPeriod;
+            }
+
+            const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+            return {
+              time: formattedData[i].time,
+              value: 100 - 100 / (1 + rs),
+            };
+          })
+          .filter((d) => d !== null);
+
+      case "macd":
+        const [fastPeriod, slowPeriod, signalPeriod] = indicator.periods;
+        const fastEMA = calculateEMA(prices, fastPeriod);
+        const slowEMA = calculateEMA(prices, slowPeriod);
+        const macdLine = fastEMA.map((fast, i) => fast - slowEMA[i]);
+        const signalLine = calculateEMA(macdLine, signalPeriod);
+
+        return prices.map((_, i) => ({
+          time: formattedData[i].time,
+          macd: macdLine[i],
+          signal: signalLine[i],
+          histogram: macdLine[i] - signalLine[i],
+        }));
+
+      case "stoch":
+        const [kPeriod, dPeriod, smooth] = indicator.periods;
+        const stochData = [];
+
+        for (let i = kPeriod - 1; i < prices.length; i++) {
+          const slice = prices.slice(i - kPeriod + 1, i + 1);
+          const high = Math.max(...slice);
+          const low = Math.min(...slice);
+          const close = prices[i];
+
+          const k = ((close - low) / (high - low)) * 100;
+          stochData.push(k);
+        }
+
+        const smoothK = calculateSMA(stochData, smooth);
+        const smoothD = calculateSMA(smoothK, dPeriod);
+
+        return prices
+          .map((_, i) => {
+            if (i < kPeriod - 1 + smooth - 1) return null;
+            return {
+              time: formattedData[i].time,
+              k: smoothK[i - (kPeriod - 1)],
+              d: smoothD[i - (kPeriod - 1) - (dPeriod - 1)],
+            };
+          })
+          .filter((d) => d !== null);
+
+      case "ultimateMacd":
+        const { fastLength, slowLength, signalLength } = indicator.config;
+
+        // Calcular EMAs con nombres diferentes
+        const ultFastEMA = calculateEMA(prices, fastLength);
+        const ultSlowEMA = calculateEMA(prices, slowLength);
+
+        // Calcular línea MACD
+        const ultMacdLine = ultFastEMA.map((fast, i) => fast - ultSlowEMA[i]);
+
+        // Calcular línea de señal
+        const ultSignalLine = calculateEMA(ultMacdLine, signalLength);
+
+        // Calcular histograma
+        const ultHistogram = ultMacdLine.map(
+          (macd, i) => macd - ultSignalLine[i]
+        );
+
+        return prices.map((_, i) => {
+          const hist = ultHistogram[i];
+          const prevHist = ultHistogram[i - 1] || 0;
+          const macd = ultMacdLine[i];
+          const signal = ultSignalLine[i];
+
+          return {
+            time: formattedData[i].time,
+            macd,
+            signal,
+            histogram: hist,
+            histState: {
+              isUp: hist > prevHist && hist > 0,
+              isDown: hist < prevHist && hist > 0,
+              isBelowUp: hist > prevHist && hist <= 0,
+              isBelowDown: hist < prevHist && hist <= 0,
+            },
+            macdAboveSignal: macd >= signal,
+            cross:
+              i > 0 &&
+              ((ultMacdLine[i] > ultSignalLine[i] &&
+                ultMacdLine[i - 1] <= ultSignalLine[i - 1]) ||
+                (ultMacdLine[i] < ultSignalLine[i] &&
+                  ultMacdLine[i - 1] >= ultSignalLine[i - 1])),
+          };
+        });
       default:
         return [];
     }
+  };
+
+  // Funciones auxiliares
+  const calculateEMA = (data, period) => {
+    const multiplier = 2 / (period + 1);
+    return data.reduce((ema, price, i) => {
+      if (i === 0) return [...ema, price];
+      return [...ema, (price - ema[i - 1]) * multiplier + ema[i - 1]];
+    }, []);
+  };
+
+  const calculateSMA = (data, period) => {
+    const result = [];
+    for (let i = period - 1; i < data.length; i++) {
+      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      result.push(sum / period);
+    }
+    return result;
   };
 
   useEffect(() => {
@@ -230,16 +391,111 @@ export function Chart({ data, interval }) {
     });
     seriesRef.current = {};
 
-    // Establecer datos de velas
-    const formattedData = data.map((point) => ({
-      time: point[0] / 1000,
-      open: point[1],
-      high: point[2],
-      low: point[3],
-      close: point[4],
-    }));
-
+    // Usar formattedData directamente aquí
     candlestickSeries.setData(formattedData);
+
+    // Procesar indicadores activos
+    activeIndicators.forEach((indicator) => {
+      const prices = formattedData.map((d) => d.close);
+
+      switch (indicator.id) {
+        case "ma":
+          indicator.periods.forEach((period, index) => {
+            const maData = calculateIndicators(prices, {
+              id: "ma",
+              periods: [period],
+            });
+            const lineSeries = chart.addLineSeries({
+              color: COLORS.ma[index],
+              lineWidth: 1,
+              priceFormat: {
+                type: "price",
+                precision: precision,
+              },
+            });
+
+            const maLineData = maData
+              .map((value, i) => ({
+                time: formattedData[i].time,
+                value: value[period],
+              }))
+              .filter((d) => d.value !== undefined);
+
+            lineSeries.setData(maLineData);
+            seriesRef.current[`ma_${period}`] = lineSeries;
+          });
+          break;
+
+        case "ema":
+          const emaData = calculateIndicators(prices, {
+            id: "ema",
+            periods: indicator.periods,
+          });
+          emaData.forEach((data, index) => {
+            const lineSeries = chart.addLineSeries({
+              color: COLORS.ema[index],
+              lineWidth: 1,
+              priceFormat: {
+                type: "price",
+                precision: precision,
+              },
+            });
+
+            const emaLineData = data.values.map((value, i) => ({
+              time: formattedData[i].time,
+              value: value,
+            }));
+
+            lineSeries.setData(emaLineData);
+            seriesRef.current[`ema_${data.period}`] = lineSeries;
+          });
+          break;
+
+        case "bb":
+          const bbData = calculateIndicators(prices, indicator);
+          const bbSeries = {
+            middle: chart.addLineSeries({
+              color: COLORS.bb[0],
+              lineWidth: 1,
+              priceFormat: { type: "price", precision: precision },
+            }),
+            upper: chart.addLineSeries({
+              color: COLORS.bb[1],
+              lineWidth: 1,
+              priceFormat: { type: "price", precision: precision },
+            }),
+            lower: chart.addLineSeries({
+              color: COLORS.bb[2],
+              lineWidth: 1,
+              priceFormat: { type: "price", precision: precision },
+            }),
+          };
+
+          const bbLineData = bbData
+            .map((value, i) => ({
+              time: formattedData[i].time,
+              value: value?.middle,
+              upper: value?.upper,
+              lower: value?.lower,
+            }))
+            .filter((d) => d.value !== null);
+
+          bbSeries.middle.setData(
+            bbLineData.map((d) => ({ time: d.time, value: d.value }))
+          );
+          bbSeries.upper.setData(
+            bbLineData.map((d) => ({ time: d.time, value: d.upper }))
+          );
+          bbSeries.lower.setData(
+            bbLineData.map((d) => ({ time: d.time, value: d.lower }))
+          );
+
+          seriesRef.current["bb_middle"] = bbSeries.middle;
+          seriesRef.current["bb_upper"] = bbSeries.upper;
+          seriesRef.current["bb_lower"] = bbSeries.lower;
+          break;
+      }
+    });
 
     // Ajustar el número de velas visibles según el dispositivo
     const isMobile = window.innerWidth < 768;
@@ -290,6 +546,28 @@ export function Chart({ data, interval }) {
     window.addEventListener("resize", handleResize);
     chartRef.current = chart;
 
+    // Después de crear el chart, ocultar el logo original y agregar el nuestro
+    const tvLogo = chartContainerRef.current.querySelector("#tv-attr-logo");
+    if (tvLogo) {
+      tvLogo.style.display = "none";
+    }
+
+    // Agregar nuestro logo
+    const logoContainer = document.createElement("div");
+    logoContainer.style.position = "absolute";
+    logoContainer.style.right = "5px";
+    logoContainer.style.bottom = "5px";
+    logoContainer.style.zIndex = "3";
+
+    const logo = document.createElement("img");
+    logo.src = logoCarlos;
+    logo.style.height = "28px";
+    logo.style.width = "auto";
+    logo.style.opacity = "0.9";
+
+    logoContainer.appendChild(logo);
+    chartContainerRef.current.appendChild(logoContainer);
+
     return () => {
       window.removeEventListener("resize", handleResize);
       Object.entries(seriesRef.current).forEach(([key, series]) => {
@@ -304,10 +582,45 @@ export function Chart({ data, interval }) {
       if (chart && typeof chart.remove === "function") {
         chart.remove();
       }
+      if (logoContainer && logoContainer.parentNode) {
+        logoContainer.parentNode.removeChild(logoContainer);
+      }
     };
   }, [data, activeIndicators]);
 
-  // Manejar cambios de indicadores de manera más segura
+  // Efecto para calcular los datos de los subgráficos
+  useEffect(() => {
+    if (!data || !activeIndicators.length) return;
+
+    const prices = formattedData.map((d) => d.close);
+    const newSubChartData = { ...subChartData };
+
+    activeIndicators.forEach((indicator) => {
+      switch (indicator.id) {
+        case "rsi":
+          newSubChartData.rsi = calculateIndicators(prices, indicator);
+          break;
+        case "macd":
+          newSubChartData.macd = calculateIndicators(prices, indicator);
+          break;
+        case "stoch":
+          newSubChartData.stoch = calculateIndicators(prices, indicator);
+          break;
+        case "ultimateMacd":
+          newSubChartData.ultimateMacd = calculateIndicators(prices, indicator);
+          break;
+      }
+    });
+
+    setSubChartData(newSubChartData);
+  }, [data, activeIndicators]);
+
+  // Guardar en localStorage cuando cambien los indicadores activos
+  useEffect(() => {
+    localStorage.setItem("activeIndicators", JSON.stringify(activeIndicators));
+  }, [activeIndicators]);
+
+  // Actualizar la función toggleIndicator para mantener toda la configuración
   const toggleIndicator = (indicator) => {
     setActiveIndicators((prev) => {
       const isActive = prev.some((i) => i.id === indicator.id);
@@ -327,9 +640,13 @@ export function Chart({ data, interval }) {
             }
           }
         });
-        return prev.filter((i) => i.id !== indicator.id);
+        const newIndicators = prev.filter((i) => i.id !== indicator.id);
+        localStorage.setItem("activeIndicators", JSON.stringify(newIndicators));
+        return newIndicators;
       }
-      return [...prev, indicator];
+      const newIndicators = [...prev, indicator];
+      localStorage.setItem("activeIndicators", JSON.stringify(newIndicators));
+      return newIndicators;
     });
   };
 
@@ -353,9 +670,63 @@ export function Chart({ data, interval }) {
       <div className="rounded-lg border border-border bg-card p-2 sm:p-4">
         <div
           ref={chartContainerRef}
-          className="w-full min-h-[300px] md:min-h-[400px]"
+          className="w-full min-h-[300px] md:min-h-[400px] relative custom-chart"
+          style={{
+            "--logo-url": `url(${logoCarlos})`,
+          }}
         />
       </div>
+
+      {/* Subgráficos */}
+      {activeIndicators.map((indicator) => {
+        switch (indicator.id) {
+          case "rsi":
+            return (
+              subChartData.rsi && (
+                <SubChart
+                  key="rsi"
+                  data={subChartData.rsi}
+                  type="rsi"
+                  height={150}
+                />
+              )
+            );
+          case "macd":
+            return (
+              subChartData.macd && (
+                <SubChart
+                  key="macd"
+                  data={subChartData.macd}
+                  type="macd"
+                  height={150}
+                />
+              )
+            );
+          case "stoch":
+            return (
+              subChartData.stoch && (
+                <SubChart
+                  key="stoch"
+                  data={subChartData.stoch}
+                  type="stoch"
+                  height={150}
+                />
+              )
+            );
+          case "ultimateMacd":
+            return (
+              subChartData.ultimateMacd && (
+                <UltimateMacdChart
+                  key="ultimateMacd"
+                  data={subChartData.ultimateMacd}
+                  height={150}
+                />
+              )
+            );
+          default:
+            return null;
+        }
+      })}
     </div>
   );
 }

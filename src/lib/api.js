@@ -22,7 +22,7 @@ const CRYPTO_NAMES = {
   MATIC: "Polygon",
 };
 
-export async function getTopCryptos(limit = 10) {
+export async function getTopCryptos(limit = 20) {
   try {
     const [tickerResponse, exchangeInfo, bookTickers] = await Promise.all([
       axiosInstance.get(`${BINANCE_API}/ticker/24hr`),

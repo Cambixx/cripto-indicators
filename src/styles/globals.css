@@ -48,3 +48,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+#tv-attr-logo {
+  background-image: var(--logo-url) !important;
+  background-size: contain !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+#tv-attr-logo svg {
+  display: none !important;
+}
+
+.custom-chart #tv-attr-logo {
+  background-image: var(--logo-url) !important;
+  background-size: contain !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.custom-chart #tv-attr-logo svg {
+  display: none !important;
+}

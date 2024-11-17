@@ -8,12 +8,12 @@ export function Header() {
           </div>
           <nav className="flex items-center space-x-4">
             <a
-              href="https://www.coingecko.com/api/documentation"
+              href="https://binance-docs.github.io/apidocs/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Powered by CoinGecko API
+              Powered by Binance API
             </a>
           </nav>
         </div>
