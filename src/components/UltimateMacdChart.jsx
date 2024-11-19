@@ -349,7 +349,7 @@ export function UltimateMacdChart({
 
   return (
     <>
-      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-250 ease-apple">
+      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-md hover:shadow-lg transition-all overflow-hidden">
         <div className="px-3 py-2 md:px-4 md:py-3 border-b border-border/40">
           <h3 className="text-xs md:text-sm font-medium text-foreground/90">
             {title}

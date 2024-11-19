@@ -681,7 +681,7 @@ export function Chart({ data, interval, selectedCrypto }) {
       </div>
 
       {/* Gráfico Principal */}
-      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm">
+      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-md hover:shadow-lg transition-all">
         <div className="p-2 md:p-4">
           <div
             ref={chartContainerRef}

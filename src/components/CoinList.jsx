@@ -54,17 +54,17 @@ export function CoinList({ coins, selectedCoin, onSelectCoin, isMobile }) {
         }}
       >
         {sortedCoins.map((coin) => (
-          <button
+          <div
             key={coin.id}
-            onClick={() => onSelectCoin(coin)}
             className={`group w-full p-3 md:p-4 rounded-lg md:rounded-xl transition-all duration-250 ease-apple
-              hover:scale-[1.01] active:scale-[0.99] relative
+              relative cursor-pointer shadow-sm hover:shadow-md
               ${
                 selectedCoin?.id === coin.id
                   ? "bg-primary text-primary-foreground shadow-md"
                   : "bg-card hover:bg-card/80"
               }
             `}
+            onClick={() => onSelectCoin(coin)}
             style={{ touchAction: "manipulation" }}
           >
             <div className="flex items-center justify-between">
@@ -141,7 +141,7 @@ export function CoinList({ coins, selectedCoin, onSelectCoin, isMobile }) {
                 />
               </svg>
             </button>
-          </button>
+          </div>
         ))}
       </div>
     </div>
