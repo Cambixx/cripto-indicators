@@ -81,6 +81,11 @@ function App() {
             : crypto
         )
       );
+
+      setSelectedCrypto((prev) => ({
+        ...prev,
+        ...update,
+      }));
     });
 
     return () => unsubscribe();
