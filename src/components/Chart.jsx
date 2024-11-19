@@ -46,7 +46,7 @@ const COLORS = {
   },
 };
 
-export function Chart({ data, interval }) {
+export function Chart({ data, interval, selectedCrypto }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef({});
@@ -752,6 +752,7 @@ export function Chart({ data, interval }) {
                       data={subChartData.ultimateMacd}
                       height={150}
                       title="Ultimate MACD"
+                      selectedCrypto={selectedCrypto}
                     />
                   )
                 );

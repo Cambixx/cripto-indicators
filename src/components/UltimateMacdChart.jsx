@@ -1,9 +1,35 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
+import { Modal } from "./Modal";
+import alertUpSound from "../assets/sounds/sound-up.wav";
+import alertDownSound from "../assets/sounds/sound-down.wav";
 
-export function UltimateMacdChart({ data, height = 150, title }) {
+export function UltimateMacdChart({
+  data,
+  height = 150,
+  title,
+  selectedCrypto,
+}) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    type: "",
+    message: "",
+  });
+
+  // Mantener un registro del último cruce mostrado
+  const lastShownCrossRef = useRef(null);
+
+  // Referencias para los sonidos
+  const upSoundRef = useRef(new Audio(alertUpSound));
+  const downSoundRef = useRef(new Audio(alertDownSound));
+
+  // Configurar volumen de los sonidos
+  useEffect(() => {
+    upSoundRef.current.volume = 0.5;
+    downSoundRef.current.volume = 0.5;
+  }, []);
 
   useEffect(() => {
     if (!chartContainerRef.current || !data) return;
@@ -151,25 +177,73 @@ export function UltimateMacdChart({ data, height = 150, title }) {
     window.addEventListener("resize", handleResize);
     chartRef.current = chart;
 
+    // Verificar cruces y mostrar notificaciones
+    const latestCross = data.filter((d) => d.cross).pop();
+
+    if (
+      latestCross &&
+      lastShownCrossRef.current !==
+        `${latestCross.time}-${latestCross.macdAboveSignal}`
+    ) {
+      const symbol = selectedCrypto?.symbol.toUpperCase() || "Crypto";
+
+      // Reproducir el sonido correspondiente
+      if (latestCross.macdAboveSignal) {
+        upSoundRef.current
+          .play()
+          .catch((e) => console.warn("Error playing sound:", e));
+      } else {
+        downSoundRef.current
+          .play()
+          .catch((e) => console.warn("Error playing sound:", e));
+      }
+
+      setModalConfig({
+        isOpen: true,
+        type: latestCross.macdAboveSignal ? "green" : "red",
+        message: latestCross.macdAboveSignal
+          ? `Posible cambio de tendencia alcista en ${symbol}. El MACD ha cruzado por encima de la línea de señal.`
+          : `Posible cambio de tendencia bajista en ${symbol}. El MACD ha cruzado por debajo de la línea de señal.`,
+      });
+    }
+
     return () => {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, height, title]);
+  }, [data, height, title, selectedCrypto]);
+
+  const handleCloseModal = () => {
+    // Al cerrar el modal, guardamos el ID del cruce que acabamos de mostrar
+    const latestCross = data.filter((d) => d.cross).pop();
+    if (latestCross) {
+      lastShownCrossRef.current = `${latestCross.time}-${latestCross.macdAboveSignal}`;
+    }
+    setModalConfig((prev) => ({ ...prev, isOpen: false }));
+  };
 
   return (
-    <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-250 ease-apple">
-      <div className="px-3 py-2 md:px-4 md:py-3 border-b border-border/40">
-        <h3 className="text-xs md:text-sm font-medium text-foreground/90">
-          {title}
-        </h3>
+    <>
+      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-250 ease-apple">
+        <div className="px-3 py-2 md:px-4 md:py-3 border-b border-border/40">
+          <h3 className="text-xs md:text-sm font-medium text-foreground/90">
+            {title}
+          </h3>
+        </div>
+        <div className="p-2 md:p-4">
+          <div
+            ref={chartContainerRef}
+            className="transition-all duration-250 ease-apple"
+          />
+        </div>
       </div>
-      <div className="p-2 md:p-4">
-        <div
-          ref={chartContainerRef}
-          className="transition-all duration-250 ease-apple"
-        />
-      </div>
-    </div>
+
+      <Modal
+        isOpen={modalConfig.isOpen}
+        onClose={handleCloseModal}
+        type={modalConfig.type}
+        message={modalConfig.message}
+      />
+    </>
   );
 }
