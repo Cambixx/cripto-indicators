@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Chart } from "./components/Chart";
 import { CoinList } from "./components/CoinList";
-import { getTopCryptos, getCryptoChart } from "./lib/api";
+import {
+  getTopCryptos,
+  getCryptoChart,
+  subscribeToPrice,
+  startChartUpdates,
+} from "./lib/api";
 import "./styles/globals.css";
 
 const INTERVALS = [
@@ -66,25 +71,34 @@ function App() {
   }, []);
 
   useEffect(() => {
-    async function fetchChartData() {
-      if (!selectedCrypto) return;
+    if (!selectedCrypto) return;
 
-      try {
-        setIsChartLoading(true);
-        setError(null);
-        const data = await getCryptoChart(selectedCrypto.id, interval);
-        setChartData(data);
-      } catch (err) {
-        setError(
-          "Error al cargar el gráfico. Por favor, intenta de nuevo más tarde."
-        );
-        console.error("Error fetching chart:", err);
-      } finally {
-        setIsChartLoading(false);
+    const unsubscribe = subscribeToPrice(selectedCrypto.symbol, (update) => {
+      setCryptos((prevCryptos) =>
+        prevCryptos.map((crypto) =>
+          crypto.symbol === selectedCrypto.symbol
+            ? { ...crypto, ...update }
+            : crypto
+        )
+      );
+    });
+
+    return () => unsubscribe();
+  }, [selectedCrypto?.symbol]);
+
+  useEffect(() => {
+    if (!selectedCrypto) return;
+
+    const stopUpdates = startChartUpdates(
+      selectedCrypto.id,
+      interval,
+      (newData) => {
+        setChartData(newData);
       }
-    }
-    fetchChartData();
-  }, [selectedCrypto, interval]);
+    );
+
+    return () => stopUpdates();
+  }, [selectedCrypto?.id, interval]);
 
   // Función para formatear el precio según su magnitud
   const formatPrice = (price) => {

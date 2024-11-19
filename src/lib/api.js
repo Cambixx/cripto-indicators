@@ -22,6 +22,186 @@ const CRYPTO_NAMES = {
   MATIC: "Polygon",
 };
 
+// Crear un mapa para las suscripciones
+const subscriptions = new Map();
+
+// Función auxiliar para esperar un tiempo
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Función para crear una conexión WebSocket con reintentos
+async function createWebSocket(key, onUpdate) {
+  let retryCount = 0;
+  const maxRetries = 5;
+  const baseDelay = 1000;
+
+  while (retryCount < maxRetries) {
+    try {
+      const ws = new WebSocket("wss://stream.binance.com:9443/ws");
+
+      // Promesa para manejar la conexión
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Connection timeout"));
+          ws.close();
+        }, 5000);
+
+        ws.onopen = () => {
+          clearTimeout(timeout);
+          console.log(`WebSocket connected for ${key}`);
+
+          const subscribeMsg = {
+            method: "SUBSCRIBE",
+            params: [`${key}usdt@ticker`],
+            id: Date.now(),
+          };
+          ws.send(JSON.stringify(subscribeMsg));
+          resolve(ws);
+        };
+
+        ws.onerror = (error) => {
+          clearTimeout(timeout);
+          console.warn(`WebSocket error for ${key}:`, error);
+          reject(error);
+        };
+      });
+
+      // Configurar los manejadores de eventos después de una conexión exitosa
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.e === "24hrTicker") {
+            const price = Number(data.c);
+            const priceChange = Number(data.p);
+            const priceChangePercent = Number(data.P);
+            const volume = Number(data.v) * price;
+
+            const update = {
+              current_price: price,
+              price_change_24h: priceChange,
+              price_change_percentage_24h: priceChangePercent,
+              total_volume: volume,
+            };
+
+            // Verificar si la suscripción aún existe antes de notificar
+            const subscription = subscriptions.get(key);
+            if (subscription && subscription.callbacks) {
+              subscription.callbacks.forEach((callback) => {
+                callback(update);
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error processing message:", error);
+        }
+      };
+
+      ws.onclose = async (event) => {
+        console.log(`WebSocket closed for ${key} with code ${event.code}`);
+        const subscription = subscriptions.get(key);
+        if (subscription && subscription.callbacks.size > 0) {
+          await delay(Math.min(1000 * Math.pow(2, retryCount), 30000));
+          subscription.ws = null;
+          createWebSocket(key, onUpdate);
+        }
+      };
+
+      return ws;
+    } catch (error) {
+      retryCount++;
+      console.warn(
+        `Connection attempt ${retryCount} failed for ${key}:`,
+        error
+      );
+      await delay(baseDelay * Math.pow(2, retryCount));
+    }
+  }
+
+  throw new Error(`Failed to connect after ${maxRetries} attempts`);
+}
+
+export function subscribeToPrice(symbol, onUpdate) {
+  const key = symbol.toLowerCase();
+
+  if (subscriptions.has(key)) {
+    const subscription = subscriptions.get(key);
+    subscription.callbacks.add(onUpdate);
+
+    // Si el WebSocket está cerrado, intentar reconectar
+    if (!subscription.ws || subscription.ws.readyState !== WebSocket.OPEN) {
+      createWebSocket(key, onUpdate)
+        .then((ws) => {
+          subscription.ws = ws;
+        })
+        .catch((error) => {
+          console.error(`Failed to reconnect WebSocket for ${key}:`, error);
+        });
+    }
+  } else {
+    subscriptions.set(key, {
+      callbacks: new Set([onUpdate]),
+      ws: null,
+    });
+
+    createWebSocket(key, onUpdate)
+      .then((ws) => {
+        const subscription = subscriptions.get(key);
+        if (subscription) {
+          subscription.ws = ws;
+        }
+      })
+      .catch((error) => {
+        console.error(`Failed to create WebSocket for ${key}:`, error);
+      });
+  }
+
+  return () => {
+    const subscription = subscriptions.get(key);
+    if (subscription) {
+      subscription.callbacks.delete(onUpdate);
+      if (subscription.callbacks.size === 0) {
+        if (subscription.ws) {
+          subscription.ws.close(1000, "Subscription ended");
+        }
+        subscriptions.delete(key);
+      }
+    }
+  };
+}
+
+// Función para actualizar el gráfico periódicamente
+export function startChartUpdates(coinId, interval, onUpdate) {
+  let timeoutId = null;
+  let isRunning = true;
+
+  async function updateChart() {
+    if (!isRunning) return;
+
+    try {
+      const data = await getCryptoChart(coinId, interval);
+      if (isRunning) {
+        onUpdate(data);
+        timeoutId = setTimeout(updateChart, 10000);
+      }
+    } catch (error) {
+      console.error("Error updating chart:", error);
+      if (isRunning) {
+        timeoutId = setTimeout(updateChart, 10000);
+      }
+    }
+  }
+
+  // Iniciar las actualizaciones
+  updateChart();
+
+  // Retornar función para detener las actualizaciones
+  return () => {
+    isRunning = false;
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  };
+}
+
 export async function getTopCryptos(limit = 20) {
   try {
     const [tickerResponse, exchangeInfo, bookTickers] = await Promise.all([
