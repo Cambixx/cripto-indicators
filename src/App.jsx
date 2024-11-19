@@ -2,12 +2,7 @@ import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Chart } from "./components/Chart";
 import { CoinList } from "./components/CoinList";
-import {
-  getTopCryptos,
-  getCryptoChart,
-  subscribeToPrice,
-  startChartUpdates,
-} from "./lib/api";
+import { getTopCryptos, getCryptoChart, subscribeToPrice } from "./lib/api";
 import "./styles/globals.css";
 
 const INTERVALS = [
@@ -86,6 +81,14 @@ function App() {
         ...prev,
         ...update,
       }));
+
+      if (chartData && chartData.length > 0) {
+        setChartData((prevData) => {
+          const lastCandle = [...prevData[prevData.length - 1]];
+          lastCandle[4] = update.current_price;
+          return [...prevData.slice(0, -1), lastCandle];
+        });
+      }
     });
 
     return () => unsubscribe();
@@ -94,15 +97,19 @@ function App() {
   useEffect(() => {
     if (!selectedCrypto) return;
 
-    const stopUpdates = startChartUpdates(
-      selectedCrypto.id,
-      interval,
-      (newData) => {
-        setChartData(newData);
+    async function fetchChartData() {
+      try {
+        setIsChartLoading(true);
+        const data = await getCryptoChart(selectedCrypto.id, interval);
+        setChartData(data);
+      } catch (error) {
+        console.error("Error fetching chart data:", error);
+      } finally {
+        setIsChartLoading(false);
       }
-    );
+    }
 
-    return () => stopUpdates();
+    fetchChartData();
   }, [selectedCrypto?.id, interval]);
 
   // Función para formatear el precio según su magnitud
