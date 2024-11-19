@@ -231,7 +231,7 @@ function App() {
         onClick={() => setIsMobileMenuOpen(false)}
       >
         <div
-          className={`fixed right-0 top-0 h-full w-3/4 bg-card shadow-xl transition-transform duration-200 flex flex-col ${
+          className={`fixed right-0 top-[64px] h-[calc(100%-64px)] w-3/4 bg-card shadow-xl transition-transform duration-200 flex flex-col ${
             isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -257,7 +257,7 @@ function App() {
               </svg>
             </button>
           </div>
-          <div className="flex-1 p-4 pb-24 h-full">
+          <div className="flex-1 p-4 pb-24 h-full overflow-hidden">
             <CoinList
               coins={cryptos}
               selectedCoin={selectedCrypto}
