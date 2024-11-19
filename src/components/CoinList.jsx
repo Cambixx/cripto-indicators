@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export function CoinList({ coins, selectedCoin, onSelectCoin }) {
+export function CoinList({ coins, selectedCoin, onSelectCoin, isMobile }) {
   // Estado para los favoritos
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem("favorites");
@@ -105,8 +105,10 @@ export function CoinList({ coins, selectedCoin, onSelectCoin }) {
             {/* Botón de favorito */}
             <button
               onClick={(e) => toggleFavorite(coin.id, e)}
-              className={`absolute right-2 top-0 p-1.5 rounded-full transition-all duration-250 ease-apple
-                opacity-0 group-hover:opacity-100 focus:opacity-100
+              className={`absolute right-2 top-[-2px] p-1.5 rounded-full transition-all duration-250 ease-apple
+                ${
+                  isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                } focus:opacity-100
                 ${
                   favorites.includes(coin.id)
                     ? "opacity-100 text-yellow-500"
