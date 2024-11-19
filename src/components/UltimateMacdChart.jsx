@@ -1,22 +1,28 @@
 import { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
 
-export function UltimateMacdChart({ data, height = 150 }) {
+export function UltimateMacdChart({ data, height = 150, title }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || !data) return;
 
+    const isDark = document.documentElement.classList.contains("dark");
+
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: "solid", color: "#0f1729" },
-        textColor: "#e1e7ef",
+        background: { type: "solid", color: "transparent" },
+        textColor: isDark ? "#e1e7ef" : "#1f2937",
         fontSize: 12,
       },
       grid: {
-        vertLines: { color: "rgba(42, 46, 57, 0.6)" },
-        horzLines: { color: "rgba(42, 46, 57, 0.6)" },
+        vertLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.6)" : "rgba(42, 46, 57, 0.2)",
+        },
+        horzLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.6)" : "rgba(42, 46, 57, 0.2)",
+        },
       },
       width: chartContainerRef.current.clientWidth,
       height: height,
@@ -28,37 +34,37 @@ export function UltimateMacdChart({ data, height = 150 }) {
         borderVisible: true,
       },
       timeScale: {
-        borderColor: "rgba(42, 46, 57, 0.8)",
+        borderColor: isDark ? "rgba(42, 46, 57, 0.8)" : "rgba(42, 46, 57, 0.3)",
         timeVisible: true,
         secondsVisible: false,
         barSpacing: window.innerWidth < 768 ? 10 : 8,
       },
       crosshair: {
         vertLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.8)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
         horzLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.8)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
     });
 
     // MACD Line
     const macdSeries = chart.addLineSeries({
-      color: "#00ff00",
+      color: isDark ? "#00ff00" : "#15803d",
       lineWidth: 2,
       priceFormat: { type: "price", precision: 8 },
     });
 
     // Signal Line
     const signalSeries = chart.addLineSeries({
-      color: "#ffff00",
+      color: isDark ? "#ffff00" : "#ca8a04",
       lineWidth: 1,
       priceFormat: { type: "price", precision: 8 },
     });
@@ -93,7 +99,13 @@ export function UltimateMacdChart({ data, height = 150 }) {
       data.map((d) => ({
         time: d.time,
         value: d.macd,
-        color: d.macdAboveSignal ? "#00ff00" : "#ff0000",
+        color: d.macdAboveSignal
+          ? isDark
+            ? "#00ff00"
+            : "#15803d"
+          : isDark
+          ? "#ff0000"
+          : "#dc2626",
       }))
     );
 
@@ -109,14 +121,24 @@ export function UltimateMacdChart({ data, height = 150 }) {
         time: d.time,
         value: d.histogram,
         color: d.histState.isUp
-          ? "#00ffff"
+          ? isDark
+            ? "#00ffff"
+            : "#0ea5e9"
           : d.histState.isDown
-          ? "#0000ff"
+          ? isDark
+            ? "#0000ff"
+            : "#1d4ed8"
           : d.histState.isBelowDown
-          ? "#ff0000"
+          ? isDark
+            ? "#ff0000"
+            : "#dc2626"
           : d.histState.isBelowUp
-          ? "#800000"
-          : "#808080",
+          ? isDark
+            ? "#800000"
+            : "#991b1b"
+          : isDark
+          ? "#808080"
+          : "#6b7280",
       }))
     );
 
@@ -133,11 +155,21 @@ export function UltimateMacdChart({ data, height = 150 }) {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [data, height]);
+  }, [data, height, title]);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-2 sm:p-4 mt-4">
-      <div ref={chartContainerRef} />
+    <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-250 ease-apple">
+      <div className="px-3 py-2 md:px-4 md:py-3 border-b border-border/40">
+        <h3 className="text-xs md:text-sm font-medium text-foreground/90">
+          {title}
+        </h3>
+      </div>
+      <div className="p-2 md:p-4">
+        <div
+          ref={chartContainerRef}
+          className="transition-all duration-250 ease-apple"
+        />
+      </div>
     </div>
   );
 }

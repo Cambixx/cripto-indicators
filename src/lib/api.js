@@ -130,21 +130,13 @@ export async function getCryptoChart(coinId, interval = "1h") {
 
     const symbol = `${coinId.toUpperCase()}USDT`;
 
-    // Obtener el precio actual y la precisión del par
-    const [exchangeInfo, bookTicker] = await Promise.all([
-      axiosInstance.get(`${BINANCE_API}/exchangeInfo`, {
-        params: { symbol },
-      }),
-      axiosInstance.get(`${BINANCE_API}/ticker/bookTicker`, {
-        params: { symbol },
-      }),
-    ]);
+    // Obtener primero los datos del listado para tener el precio exacto
+    const topCryptos = await getTopCryptos();
+    const currentCrypto = topCryptos.find((crypto) => crypto.id === coinId);
 
-    // Obtener la precisión del par
-    const priceFilter = exchangeInfo.data.symbols[0].filters.find(
-      (f) => f.filterType === "PRICE_FILTER"
-    );
-    const tickSize = priceFilter ? Number(priceFilter.tickSize) : 0.00000001;
+    if (!currentCrypto) {
+      throw new Error("Cryptocurrency not found");
+    }
 
     // Obtener datos históricos
     const response = await axiosInstance.get(`${BINANCE_API}/klines`, {
@@ -155,28 +147,27 @@ export async function getCryptoChart(coinId, interval = "1h") {
       },
     });
 
-    // Obtener el precio actual del libro de órdenes
-    const currentPrice =
-      (Number(bookTicker.data.bidPrice) + Number(bookTicker.data.askPrice)) / 2;
-    const roundedCurrentPrice = Math.round(currentPrice / tickSize) * tickSize;
-
+    // Formatear los datos históricos usando el precio exacto del listado
     const formattedData = response.data
       .map((candle) => {
         const [timestamp, open, high, low, close] = candle;
-        // Ajustar el último precio de cierre para que coincida con el precio actual
+
+        // Verificar si es la última vela
         const isLastCandle =
           Number(timestamp) ===
           Math.max(...response.data.map((c) => Number(c[0])));
-        const adjustedClose = isLastCandle
-          ? roundedCurrentPrice
+
+        // Si es la última vela, usar el precio del listado
+        const closePrice = isLastCandle
+          ? currentCrypto.current_price
           : Number(close);
 
         return [
           Number(timestamp),
-          Math.round(Number(open) / tickSize) * tickSize,
-          Math.round(Number(high) / tickSize) * tickSize,
-          Math.round(Number(low) / tickSize) * tickSize,
-          Math.round(adjustedClose / tickSize) * tickSize,
+          Number(open),
+          Number(high),
+          Number(low),
+          closePrice,
         ];
       })
       .filter((candle) => !candle.some(isNaN));

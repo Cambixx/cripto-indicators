@@ -1,22 +1,29 @@
 import { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
 
-export function SubChart({ data, type, height = 150 }) {
+export function SubChart({ data, type, height = 150, title }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || !data) return;
 
+    const isDark = document.documentElement.classList.contains("dark");
+
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: "solid", color: "#0f1729" },
-        textColor: "#e1e7ef",
+        background: { type: "solid", color: "transparent" },
+        textColor: isDark ? "#e1e7ef" : "#1f2937",
         fontSize: 12,
+        fontFamily: "Inter, -apple-system, system-ui, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(42, 46, 57, 0.6)" },
-        horzLines: { color: "rgba(42, 46, 57, 0.6)" },
+        vertLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+        },
+        horzLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+        },
       },
       width: chartContainerRef.current.clientWidth,
       height: height,
@@ -25,26 +32,26 @@ export function SubChart({ data, type, height = 150 }) {
           top: 0.1,
           bottom: 0.1,
         },
-        borderVisible: true,
+        borderVisible: false,
       },
       timeScale: {
-        borderColor: "rgba(42, 46, 57, 0.8)",
+        borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
         barSpacing: window.innerWidth < 768 ? 10 : 8,
       },
       crosshair: {
         vertLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
         horzLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
     });
@@ -52,7 +59,7 @@ export function SubChart({ data, type, height = 150 }) {
     switch (type) {
       case "rsi":
         const rsiSeries = chart.addLineSeries({
-          color: "#E91E63",
+          color: isDark ? "#E91E63" : "#be185d",
           lineWidth: 1,
           priceFormat: {
             type: "price",
@@ -61,14 +68,14 @@ export function SubChart({ data, type, height = 150 }) {
           },
         });
 
-        // Agregar líneas de sobrecompra/sobreventa
+        // Líneas de sobrecompra/sobreventa
         const overBought = chart.addLineSeries({
-          color: "rgba(255, 82, 82, 0.5)",
+          color: isDark ? "rgba(255, 82, 82, 0.5)" : "rgba(239, 68, 68, 0.4)",
           lineWidth: 1,
           lineStyle: 2,
         });
         const overSold = chart.addLineSeries({
-          color: "rgba(76, 175, 80, 0.5)",
+          color: isDark ? "rgba(76, 175, 80, 0.5)" : "rgba(34, 197, 94, 0.4)",
           lineWidth: 1,
           lineStyle: 2,
         });
@@ -80,27 +87,18 @@ export function SubChart({ data, type, height = 150 }) {
 
       case "macd":
         const macdLineSeries = chart.addLineSeries({
-          color: "#2196F3",
+          color: isDark ? "#2196F3" : "#1d4ed8",
           lineWidth: 1,
-          priceFormat: {
-            type: "price",
-            precision: 6,
-          },
+          priceFormat: { type: "price", precision: 6 },
         });
         const signalLineSeries = chart.addLineSeries({
-          color: "#FF5252",
+          color: isDark ? "#FF5252" : "#dc2626",
           lineWidth: 1,
-          priceFormat: {
-            type: "price",
-            precision: 6,
-          },
+          priceFormat: { type: "price", precision: 6 },
         });
         const histogramSeries = chart.addHistogramSeries({
-          color: "#4CAF50",
-          priceFormat: {
-            type: "price",
-            precision: 6,
-          },
+          color: isDark ? "#4CAF50" : "#15803d",
+          priceFormat: { type: "price", precision: 6 },
         });
 
         macdLineSeries.setData(
@@ -119,37 +117,37 @@ export function SubChart({ data, type, height = 150 }) {
           data.map((d) => ({
             time: d.time,
             value: d.histogram,
-            color: d.histogram >= 0 ? "#4CAF50" : "#FF5252",
+            color:
+              d.histogram >= 0
+                ? isDark
+                  ? "#4CAF50"
+                  : "#15803d"
+                : isDark
+                ? "#FF5252"
+                : "#dc2626",
           }))
         );
         break;
 
       case "stoch":
         const kSeries = chart.addLineSeries({
-          color: "#FF4081",
+          color: isDark ? "#FF4081" : "#db2777",
           lineWidth: 1,
-          priceFormat: {
-            type: "price",
-            precision: 2,
-          },
+          priceFormat: { type: "price", precision: 2 },
         });
         const dSeries = chart.addLineSeries({
-          color: "#536DFE",
+          color: isDark ? "#536DFE" : "#4f46e5",
           lineWidth: 1,
-          priceFormat: {
-            type: "price",
-            precision: 2,
-          },
+          priceFormat: { type: "price", precision: 2 },
         });
 
-        // Agregar líneas de sobrecompra/sobreventa
         const stochOverBought = chart.addLineSeries({
-          color: "rgba(255, 82, 82, 0.5)",
+          color: isDark ? "rgba(255, 82, 82, 0.5)" : "rgba(239, 68, 68, 0.4)",
           lineWidth: 1,
           lineStyle: 2,
         });
         const stochOverSold = chart.addLineSeries({
-          color: "rgba(76, 175, 80, 0.5)",
+          color: isDark ? "rgba(76, 175, 80, 0.5)" : "rgba(34, 197, 94, 0.4)",
           lineWidth: 1,
           lineStyle: 2,
         });
@@ -187,8 +185,18 @@ export function SubChart({ data, type, height = 150 }) {
   }, [data, type, height]);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-2 sm:p-4 mt-4">
-      <div ref={chartContainerRef} />
+    <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm overflow-hidden transition-all duration-250 ease-apple">
+      <div className="px-3 py-2 md:px-4 md:py-3 border-b border-border/40">
+        <h3 className="text-xs md:text-sm font-medium text-foreground/90">
+          {title}
+        </h3>
+      </div>
+      <div className="p-2 md:p-4">
+        <div
+          ref={chartContainerRef}
+          className="transition-all duration-250 ease-apple"
+        />
+      </div>
     </div>
   );
 }

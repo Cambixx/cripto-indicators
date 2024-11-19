@@ -270,42 +270,31 @@ export function Chart({ data, interval }) {
   useEffect(() => {
     if (!chartContainerRef.current || !data) return;
 
-    // Obtener el precio mínimo y máximo para ajustar la escala
-    const prices = data.flatMap((candle) => [
-      candle[1],
-      candle[2],
-      candle[3],
-      candle[4],
-    ]);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    const priceRange = maxPrice - minPrice;
+    const container = chartContainerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = window.innerWidth < 768 ? 300 : 400;
 
-    // Determinar la precisión basada en el precio mínimo
-    let precision;
-    if (minPrice < 0.00001) precision = 8;
-    else if (minPrice < 0.0001) precision = 7;
-    else if (minPrice < 0.001) precision = 6;
-    else if (minPrice < 0.01) precision = 5;
-    else if (minPrice < 1) precision = 4;
-    else if (minPrice < 10) precision = 3;
-    else precision = 2;
+    const isDark = document.documentElement.classList.contains("dark");
 
-    // Crear el chart con la configuración actualizada
-    const chart = createChart(chartContainerRef.current, {
+    const chart = createChart(container, {
       layout: {
-        background: { type: "solid", color: "#0f1729" },
-        textColor: "#e1e7ef",
+        background: { type: "solid", color: "transparent" },
+        textColor: isDark ? "#e1e7ef" : "#1f2937",
         fontSize: 12,
+        fontFamily: "Inter, -apple-system, system-ui, sans-serif",
       },
       grid: {
-        vertLines: { color: "rgba(42, 46, 57, 0.6)" },
-        horzLines: { color: "rgba(42, 46, 57, 0.6)" },
+        vertLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+        },
+        horzLines: {
+          color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+        },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: window.innerWidth < 768 ? 300 : 400,
+      width: containerWidth,
+      height: containerHeight,
       timeScale: {
-        borderColor: "rgba(42, 46, 57, 0.8)",
+        borderColor: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
         timeVisible: true,
         secondsVisible: false,
         barSpacing: window.innerWidth < 768 ? 10 : 8,
@@ -314,50 +303,37 @@ export function Chart({ data, interval }) {
         fixRightEdge: true,
       },
       rightPriceScale: {
-        borderColor: "rgba(42, 46, 57, 0.8)",
+        borderColor: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
         scaleMargins: {
           top: 0.1,
           bottom: 0.1,
         },
         mode: 0,
-        precision: precision,
-        autoScale: true,
         alignLabels: true,
         borderVisible: true,
-        entireTextOnly: true,
-        ticksVisible: true,
-        format: "{price}",
+        autoScale: true,
+        invertScale: false,
+        ticksVisible: false,
       },
       crosshair: {
         vertLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
         horzLine: {
-          color: "rgba(42, 46, 57, 0.8)",
+          color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
           width: 1,
           style: 1,
-          labelBackgroundColor: "#0f1729",
+          labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
-      localization: {
-        priceFormatter: (price) => `$${price.toFixed(precision)}`,
-      },
-      handleScale: {
-        mouseWheel: true,
-        pinch: true,
-      },
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
-        vertTouchDrag: true,
-      },
+      handleScale: true,
+      handleScroll: true,
     });
 
-    // Serie principal de velas con la configuración actualizada
+    // Serie principal de velas
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: "#26a69a",
       downColor: "#ef5350",
@@ -366,17 +342,9 @@ export function Chart({ data, interval }) {
       wickDownColor: "#ef5350",
       priceFormat: {
         type: "price",
-        precision: precision,
-        minMove: Math.pow(10, -precision),
-        formatter: (price) => `$${price.toFixed(precision)}`,
+        minMove: 0.00000001,
+        precision: 8,
       },
-      // Asegurar que la serie use el mismo rango de precios
-      autoscaleInfoProvider: () => ({
-        priceRange: {
-          minValue: minPrice,
-          maxValue: maxPrice,
-        },
-      }),
     });
 
     // Limpiar series anteriores de manera segura
@@ -410,7 +378,7 @@ export function Chart({ data, interval }) {
               lineWidth: 1,
               priceFormat: {
                 type: "price",
-                precision: precision,
+                precision: 8,
               },
             });
 
@@ -437,7 +405,7 @@ export function Chart({ data, interval }) {
               lineWidth: 1,
               priceFormat: {
                 type: "price",
-                precision: precision,
+                precision: 8,
               },
             });
 
@@ -457,17 +425,17 @@ export function Chart({ data, interval }) {
             middle: chart.addLineSeries({
               color: COLORS.bb[0],
               lineWidth: 1,
-              priceFormat: { type: "price", precision: precision },
+              priceFormat: { type: "price", precision: 8 },
             }),
             upper: chart.addLineSeries({
               color: COLORS.bb[1],
               lineWidth: 1,
-              priceFormat: { type: "price", precision: precision },
+              priceFormat: { type: "price", precision: 8 },
             }),
             lower: chart.addLineSeries({
               color: COLORS.bb[2],
               lineWidth: 1,
-              priceFormat: { type: "price", precision: precision },
+              priceFormat: { type: "price", precision: 8 },
             }),
           };
 
@@ -521,33 +489,38 @@ export function Chart({ data, interval }) {
 
     // Función para manejar el resize
     const handleResize = () => {
-      const isMobile = window.innerWidth < 768;
-      const visibleBars = isMobile ? 25 : 80;
-      const barSpacing = isMobile ? 10 : 8;
+      const newWidth = container.clientWidth;
+      const newHeight = window.innerWidth < 768 ? 300 : 400;
 
       chart.applyOptions({
-        width: chartContainerRef.current.clientWidth,
-        height: window.innerWidth < 768 ? 300 : 400,
+        width: newWidth,
+        height: newHeight,
         timeScale: {
-          barSpacing: barSpacing,
-          rightOffset: rightOffset,
+          barSpacing: window.innerWidth < 768 ? 10 : 8,
         },
       });
 
-      const lastIndex = formattedData.length - 1;
-      const firstVisibleIndex = Math.max(0, lastIndex - visibleBars + 1);
+      // Ajustar el rango visible después del resize
+      if (data) {
+        const visibleBars = window.innerWidth < 768 ? 25 : 80;
+        const firstVisibleBar = Math.max(0, formattedData.length - visibleBars);
 
-      chart.timeScale().setVisibleRange({
-        from: formattedData[firstVisibleIndex].time,
-        to: formattedData[lastIndex].time,
-      });
+        chart.timeScale().setVisibleRange({
+          from: formattedData[firstVisibleBar].time,
+          to: formattedData[formattedData.length - 1].time,
+        });
+      }
     };
 
-    window.addEventListener("resize", handleResize);
-    chartRef.current = chart;
+    // Usar ResizeObserver para un mejor manejo del resize
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+
+    resizeObserver.observe(container);
 
     // Después de crear el chart, ocultar el logo original y agregar el nuestro
-    const tvLogo = chartContainerRef.current.querySelector("#tv-attr-logo");
+    const tvLogo = container.querySelector("#tv-attr-logo");
     if (tvLogo) {
       tvLogo.style.display = "none";
     }
@@ -566,22 +539,64 @@ export function Chart({ data, interval }) {
     logo.style.opacity = "0.9";
 
     logoContainer.appendChild(logo);
-    chartContainerRef.current.appendChild(logoContainer);
+    container.appendChild(logoContainer);
 
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      Object.entries(seriesRef.current).forEach(([key, series]) => {
-        if (series && typeof series.remove === "function") {
-          try {
-            series.remove();
-          } catch (error) {
-            console.warn(`Error removing series ${key} during cleanup:`, error);
-          }
+    // Agregar listener para cambios de tema
+    const handleThemeChange = () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      chart.applyOptions({
+        layout: {
+          textColor: isDark ? "#e1e7ef" : "#1f2937",
+        },
+        grid: {
+          vertLines: {
+            color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+          },
+          horzLines: {
+            color: isDark ? "rgba(42, 46, 57, 0.2)" : "rgba(42, 46, 57, 0.1)",
+          },
+        },
+        timeScale: {
+          borderColor: isDark
+            ? "rgba(42, 46, 57, 0.2)"
+            : "rgba(42, 46, 57, 0.1)",
+        },
+        rightPriceScale: {
+          borderColor: isDark
+            ? "rgba(42, 46, 57, 0.2)"
+            : "rgba(42, 46, 57, 0.1)",
+        },
+        crosshair: {
+          vertLine: {
+            color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
+            labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
+          },
+          horzLine: {
+            color: isDark ? "rgba(42, 46, 57, 0.4)" : "rgba(42, 46, 57, 0.3)",
+            labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
+          },
+        },
+      });
+    };
+
+    // Observer para detectar cambios en el tema
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === "class") {
+          handleThemeChange();
         }
       });
-      if (chart && typeof chart.remove === "function") {
-        chart.remove();
-      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => {
+      observer.disconnect();
+      resizeObserver.disconnect();
+      chart.remove();
       if (logoContainer && logoContainer.parentNode) {
         logoContainer.parentNode.removeChild(logoContainer);
       }
@@ -651,82 +666,109 @@ export function Chart({ data, interval }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {INDICATORS.map((indicator) => (
-          <button
-            key={indicator.id}
-            onClick={() => toggleIndicator(indicator)}
-            className={`px-3 py-1 text-xs rounded-full transition-colors ${
-              activeIndicators.some((i) => i.id === indicator.id)
-                ? "bg-primary text-primary-foreground"
-                : "bg-accent hover:bg-accent/80"
-            }`}
-          >
-            {indicator.name}
-          </button>
-        ))}
+    <div className="space-y-4 animate-fade-in">
+      {/* Indicadores */}
+      <div className="overflow-x-auto -mx-4 px-4 pb-2 md:mx-0 md:px-0">
+        <div className="flex gap-1.5 md:gap-2 min-w-max">
+          {INDICATORS.map((indicator) => (
+            <button
+              key={indicator.id}
+              onClick={() => toggleIndicator(indicator)}
+              className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-medium 
+                transition-all duration-250 ease-apple hover:scale-[1.02] active:scale-[0.98]
+                ${
+                  activeIndicators.some((i) => i.id === indicator.id)
+                    ? "bg-primary text-primary-foreground shadow-lg"
+                    : "bg-secondary hover:bg-secondary/80 text-secondary-foreground"
+                }
+              `}
+              style={{ touchAction: "manipulation" }}
+            >
+              {indicator.name}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="rounded-lg border border-border bg-card p-2 sm:p-4">
-        <div
-          ref={chartContainerRef}
-          className="w-full min-h-[300px] md:min-h-[400px] relative custom-chart"
-          style={{
-            "--logo-url": `url(${logoCarlos})`,
-          }}
-        />
+
+      {/* Gráfico Principal */}
+      <div className="rounded-xl md:rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm">
+        <div className="p-2 md:p-4">
+          <div
+            ref={chartContainerRef}
+            className="w-full h-[300px] md:h-[400px] relative custom-chart"
+            style={{
+              "--logo-url": `url(${logoCarlos})`,
+            }}
+          />
+        </div>
       </div>
 
       {/* Subgráficos */}
-      {activeIndicators.map((indicator) => {
-        switch (indicator.id) {
-          case "rsi":
-            return (
-              subChartData.rsi && (
-                <SubChart
-                  key="rsi"
-                  data={subChartData.rsi}
-                  type="rsi"
-                  height={150}
-                />
-              )
-            );
-          case "macd":
-            return (
-              subChartData.macd && (
-                <SubChart
-                  key="macd"
-                  data={subChartData.macd}
-                  type="macd"
-                  height={150}
-                />
-              )
-            );
-          case "stoch":
-            return (
-              subChartData.stoch && (
-                <SubChart
-                  key="stoch"
-                  data={subChartData.stoch}
-                  type="stoch"
-                  height={150}
-                />
-              )
-            );
-          case "ultimateMacd":
-            return (
-              subChartData.ultimateMacd && (
-                <UltimateMacdChart
-                  key="ultimateMacd"
-                  data={subChartData.ultimateMacd}
-                  height={150}
-                />
-              )
-            );
-          default:
-            return null;
-        }
-      })}
+      <div className="space-y-4">
+        {activeIndicators.map((indicator) => {
+          const Component = (() => {
+            switch (indicator.id) {
+              case "rsi":
+                return (
+                  subChartData.rsi && (
+                    <SubChart
+                      key="rsi"
+                      data={subChartData.rsi}
+                      type="rsi"
+                      height={150}
+                      title="RSI (14)"
+                    />
+                  )
+                );
+              case "macd":
+                return (
+                  subChartData.macd && (
+                    <SubChart
+                      key="macd"
+                      data={subChartData.macd}
+                      type="macd"
+                      height={150}
+                      title="MACD (12, 26, 9)"
+                    />
+                  )
+                );
+              case "stoch":
+                return (
+                  subChartData.stoch && (
+                    <SubChart
+                      key="stoch"
+                      data={subChartData.stoch}
+                      type="stoch"
+                      height={150}
+                      title="Stochastic (14, 3, 3)"
+                    />
+                  )
+                );
+              case "ultimateMacd":
+                return (
+                  subChartData.ultimateMacd && (
+                    <UltimateMacdChart
+                      key="ultimateMacd"
+                      data={subChartData.ultimateMacd}
+                      height={150}
+                      title="Ultimate MACD"
+                    />
+                  )
+                );
+              default:
+                return null;
+            }
+          })();
+
+          return (
+            Component && (
+              <div key={indicator.id} className="animate-slide-in">
+                {Component}
+              </div>
+            )
+          );
+        })}
+      </div>
     </div>
   );
 }
