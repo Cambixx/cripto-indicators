@@ -212,23 +212,16 @@ function App() {
 
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="md:hidden fixed bottom-6 right-6 bg-primary text-primary-foreground rounded-full p-4 shadow-lg z-20"
+        className="md:hidden fixed bottom-6 right-6 bg-primary text-primary-foreground rounded-full p-2 shadow-lg z-20 transition-transform hover:scale-105 active:scale-95"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
+        <img
+          src={selectedCrypto?.image}
+          alt={selectedCrypto?.name}
+          className="w-8 h-8 rounded-full"
+          onError={(e) => {
+            e.target.src = `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@1a63530be6e374711a8554f31b17e4cb92c25fa5/128/color/generic.png`;
+          }}
+        />
       </button>
 
       <div

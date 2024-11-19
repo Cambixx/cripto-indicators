@@ -465,27 +465,18 @@ export function Chart({ data, interval, selectedCrypto }) {
       }
     });
 
-    // Ajustar el número de velas visibles según el dispositivo
-    const isMobile = window.innerWidth < 768;
-    const visibleBars = isMobile ? 25 : 80;
-    const barSpacing = isMobile ? 10 : 8;
-    const rightOffset = 5;
+    // Ajustar el número de velas visibles solo en la carga inicial
+    if (!chartRef.current) {
+      const isMobile = window.innerWidth < 768;
+      const visibleBars = isMobile ? 25 : 80;
+      const lastIndex = formattedData.length - 1;
+      const firstVisibleIndex = Math.max(0, lastIndex - visibleBars + 1);
 
-    chart.applyOptions({
-      timeScale: {
-        barSpacing: barSpacing,
-        rightOffset: rightOffset,
-      },
-    });
-
-    // Calcular el rango visible
-    const lastIndex = formattedData.length - 1;
-    const firstVisibleIndex = Math.max(0, lastIndex - visibleBars + 1);
-
-    chart.timeScale().setVisibleRange({
-      from: formattedData[firstVisibleIndex].time,
-      to: formattedData[lastIndex].time,
-    });
+      chart.timeScale().setVisibleRange({
+        from: formattedData[firstVisibleIndex].time,
+        to: formattedData[lastIndex].time,
+      });
+    }
 
     // Función para manejar el resize
     const handleResize = () => {
@@ -500,7 +491,6 @@ export function Chart({ data, interval, selectedCrypto }) {
         },
       });
 
-      // Ajustar el rango visible después del resize
       if (data) {
         const visibleBars = window.innerWidth < 768 ? 25 : 80;
         const firstVisibleBar = Math.max(0, formattedData.length - visibleBars);
@@ -750,7 +740,7 @@ export function Chart({ data, interval, selectedCrypto }) {
                     <UltimateMacdChart
                       key="ultimateMacd"
                       data={subChartData.ultimateMacd}
-                      height={150}
+                      height={200}
                       title="Ultimate MACD"
                       selectedCrypto={selectedCrypto}
                     />

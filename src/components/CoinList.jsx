@@ -14,7 +14,13 @@ export function CoinList({ coins, selectedCoin, onSelectCoin }) {
       <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">
         Top Cryptocurrencies
       </h2>
-      <div className="space-y-1.5 md:space-y-2 overflow-y-auto flex-1 pr-2 scrollbar-thin">
+      <div
+        className="space-y-1.5 md:space-y-2 overflow-y-auto flex-1 pr-2 scrollbar-thin"
+        style={{
+          maxHeight: "calc(100vh - 190px)",
+          height: "100%",
+        }}
+      >
         {coins.map((coin) => (
           <button
             key={coin.id}

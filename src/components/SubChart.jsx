@@ -54,6 +54,17 @@ export function SubChart({ data, type, height = 150, title }) {
           labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
     });
 
     switch (type) {
@@ -167,6 +178,19 @@ export function SubChart({ data, type, height = 150, title }) {
           }))
         );
         break;
+    }
+
+    // Solo establecer el rango visible en la carga inicial
+    if (!chartRef.current) {
+      const isMobile = window.innerWidth < 768;
+      const visibleBars = isMobile ? 25 : 80;
+      const lastIndex = data.length - 1;
+      const firstVisibleIndex = Math.max(0, lastIndex - visibleBars + 1);
+
+      chart.timeScale().setVisibleRange({
+        from: data[firstVisibleIndex].time,
+        to: data[lastIndex].time,
+      });
     }
 
     const handleResize = () => {
