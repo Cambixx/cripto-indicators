@@ -83,9 +83,12 @@ function App() {
       }));
 
       if (chartData && chartData.length > 0) {
+        const newPrice = update.current_price;
         setChartData((prevData) => {
           const lastCandle = [...prevData[prevData.length - 1]];
-          lastCandle[4] = update.current_price;
+          lastCandle[4] = newPrice;
+          lastCandle[2] = Math.max(lastCandle[2], newPrice);
+          lastCandle[3] = Math.min(lastCandle[3], newPrice);
           return [...prevData.slice(0, -1), lastCandle];
         });
       }
@@ -192,7 +195,13 @@ function App() {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                   </div>
                 ) : (
-                  chartData && <Chart data={chartData} interval={interval} />
+                  chartData && (
+                    <Chart
+                      data={chartData}
+                      interval={interval}
+                      selectedCrypto={selectedCrypto}
+                    />
+                  )
                 )}
               </div>
             )}
