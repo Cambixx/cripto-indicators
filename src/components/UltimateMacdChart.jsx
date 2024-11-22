@@ -39,54 +39,81 @@ export function UltimateMacdChart({
   const upSoundRef = useRef(new Audio(alertUpSound));
   const downSoundRef = useRef(new Audio(alertDownSound));
 
-  // Crear los elementos de audio una sola vez
+  // Referencia para almacenar el último rango visible
+  const lastVisibleRangeRef = useRef(null);
+
+  // Función para reproducir sonido con manejo específico para móvil
+  const playSound = async (isUpCross) => {
+    const audio = isUpCross ? upSoundRef.current : downSoundRef.current;
+
+    try {
+      // Reiniciar el audio
+      audio.currentTime = 0;
+
+      // En móvil, necesitamos cargar el audio primero
+      await audio.load();
+
+      // Intentar reproducir con diferentes métodos
+      const playAttempt = audio.play();
+
+      if (playAttempt !== undefined) {
+        playAttempt.catch((error) => {
+          console.warn("Error playing sound:", error);
+          // Si falla, intentar con un pequeño retraso
+          setTimeout(async () => {
+            try {
+              // Intentar reproducir de nuevo después de un touch/click
+              await audio.play();
+            } catch (retryError) {
+              console.warn("Retry failed:", retryError);
+            }
+          }, 100);
+        });
+      }
+    } catch (error) {
+      console.warn("Error in playSound:", error);
+    }
+  };
+
+  // Efecto para preparar los audios
   useEffect(() => {
-    // Crear nuevos elementos de audio
-    const upAudio = new Audio(alertUpSound);
-    const downAudio = new Audio(alertDownSound);
+    const setupAudio = async () => {
+      try {
+        // Crear nuevos elementos de audio
+        const upAudio = new Audio(alertUpSound);
+        const downAudio = new Audio(alertDownSound);
 
-    // Configurar los elementos
-    upAudio.preload = "auto";
-    downAudio.preload = "auto";
-    upAudio.volume = 0.5;
-    downAudio.volume = 0.5;
+        // Configurar los elementos
+        upAudio.preload = "auto";
+        downAudio.preload = "auto";
+        upAudio.volume = 0.5;
+        downAudio.volume = 0.5;
 
-    // Asignar a las referencias
-    upSoundRef.current = upAudio;
-    downSoundRef.current = downAudio;
+        // Cargar los audios
+        await Promise.all([upAudio.load(), downAudio.load()]);
+
+        // Asignar a las referencias
+        upSoundRef.current = upAudio;
+        downSoundRef.current = downAudio;
+      } catch (error) {
+        console.warn("Error setting up audio:", error);
+      }
+    };
+
+    setupAudio();
 
     // Cleanup
     return () => {
-      upAudio.pause();
-      downAudio.pause();
-      upAudio.remove();
-      downAudio.remove();
+      if (upSoundRef.current) {
+        upSoundRef.current.pause();
+        upSoundRef.current = null;
+      }
+      if (downSoundRef.current) {
+        downSoundRef.current.pause();
+        downSoundRef.current = null;
+      }
     };
   }, []);
-
-  // Función para reproducir sonido
-  const playSound = (isUpCross) => {
-    const audio = isUpCross ? upSoundRef.current : downSoundRef.current;
-
-    // Crear una promesa para manejar la reproducción
-    const playPromise = audio.play();
-
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          // La reproducción se inició correctamente
-          console.log("Sound played successfully");
-        })
-        .catch((error) => {
-          // La reproducción falló
-          console.warn("Error playing sound:", error);
-          // Intentar reproducir de nuevo después de un momento
-          setTimeout(() => {
-            audio.play().catch((e) => console.warn("Retry failed:", e));
-          }, 100);
-        });
-    }
-  };
 
   // Función para calcular el volumen promedio
   const calculateAverageVolume = (data, period) => {
@@ -224,6 +251,17 @@ export function UltimateMacdChart({
           labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
     });
 
     // MACD Line
@@ -313,6 +351,28 @@ export function UltimateMacdChart({
       }))
     );
 
+    // Guardar el rango visible actual antes de actualizar el chart
+    if (chartRef.current) {
+      const timeScale = chartRef.current.timeScale();
+      lastVisibleRangeRef.current = timeScale.getVisibleRange();
+    }
+
+    // Restaurar el último rango visible o establecer el rango por defecto
+    if (lastVisibleRangeRef.current) {
+      chart.timeScale().setVisibleRange(lastVisibleRangeRef.current);
+    } else {
+      const isMobile = window.innerWidth < 768;
+      const visibleBars = isMobile ? 25 : 80;
+      const lastIndex = data.length - 1;
+      const firstVisibleIndex = Math.max(0, lastIndex - visibleBars + 1);
+
+      chart.timeScale().setVisibleRange({
+        from: data[firstVisibleIndex].time,
+        to: data[lastIndex].time,
+      });
+    }
+
+    // Función para manejar el resize
     const handleResize = () => {
       chart.applyOptions({
         width: chartContainerRef.current.clientWidth,
@@ -332,8 +392,10 @@ export function UltimateMacdChart({
     ) {
       const symbol = selectedCrypto?.symbol.toUpperCase() || "Crypto";
 
-      // Intentar reproducir el sonido
-      playSound(latestCross.macdAboveSignal);
+      // Intentar reproducir el sonido con un pequeño retraso para móvil
+      setTimeout(() => {
+        playSound(latestCross.macdAboveSignal);
+      }, 100);
 
       // Mostrar modal
       setModalConfig({
@@ -365,6 +427,11 @@ export function UltimateMacdChart({
       chart.remove();
     };
   }, [data, height, title, selectedCrypto]);
+
+  // Limpiar lastVisibleRangeRef cuando cambia la moneda
+  useEffect(() => {
+    lastVisibleRangeRef.current = null;
+  }, [selectedCrypto?.id]);
 
   const handleCloseModal = () => {
     // Al cerrar el modal, guardamos el ID del cruce que acabamos de mostrar

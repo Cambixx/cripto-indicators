@@ -63,7 +63,7 @@ export function SubChart({ data, type, height = 150, title }) {
         mouseWheel: true,
         pressedMouseMove: true,
         horzTouchDrag: true,
-        vertTouchDrag: true,
+        vertTouchDrag: false,
       },
     });
 

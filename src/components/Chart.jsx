@@ -267,6 +267,9 @@ export function Chart({ data, interval, selectedCrypto }) {
     return result;
   };
 
+  // Referencia para almacenar el último rango visible
+  const lastVisibleRangeRef = useRef(null);
+
   useEffect(() => {
     if (!chartContainerRef.current || !data) return;
 
@@ -329,8 +332,17 @@ export function Chart({ data, interval, selectedCrypto }) {
           labelBackgroundColor: isDark ? "#0f1729" : "#ffffff",
         },
       },
-      handleScale: true,
-      handleScroll: true,
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+      },
+      handleScroll: {
+        mouseWheel: false,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
     });
 
     // Serie principal de velas
@@ -465,8 +477,16 @@ export function Chart({ data, interval, selectedCrypto }) {
       }
     });
 
-    // Ajustar el número de velas visibles solo en la carga inicial
-    if (!chartRef.current) {
+    // Guardar el rango visible actual antes de actualizar el chart
+    if (chartRef.current) {
+      const timeScale = chartRef.current.timeScale();
+      lastVisibleRangeRef.current = timeScale.getVisibleRange();
+    }
+
+    // Restaurar el último rango visible o establecer el rango por defecto
+    if (lastVisibleRangeRef.current) {
+      chart.timeScale().setVisibleRange(lastVisibleRangeRef.current);
+    } else {
       const isMobile = window.innerWidth < 768;
       const visibleBars = isMobile ? 25 : 80;
       const lastIndex = formattedData.length - 1;
@@ -480,34 +500,24 @@ export function Chart({ data, interval, selectedCrypto }) {
 
     // Función para manejar el resize
     const handleResize = () => {
-      const newWidth = container.clientWidth;
-      const newHeight = window.innerWidth < 768 ? 300 : 400;
-
-      chart.applyOptions({
-        width: newWidth,
-        height: newHeight,
-        timeScale: {
-          barSpacing: window.innerWidth < 768 ? 10 : 8,
-        },
-      });
-
-      if (data) {
-        const visibleBars = window.innerWidth < 768 ? 25 : 80;
-        const firstVisibleBar = Math.max(0, formattedData.length - visibleBars);
-
-        chart.timeScale().setVisibleRange({
-          from: formattedData[firstVisibleBar].time,
-          to: formattedData[formattedData.length - 1].time,
+      if (chartContainerRef.current) {
+        chart.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: window.innerWidth < 768 ? 300 : 400,
         });
       }
     };
 
     // Usar ResizeObserver para un mejor manejo del resize
     const resizeObserver = new ResizeObserver(() => {
-      handleResize();
+      if (chartContainerRef.current) {
+        handleResize();
+      }
     });
 
-    resizeObserver.observe(container);
+    if (container) {
+      resizeObserver.observe(container);
+    }
 
     // Después de crear el chart, ocultar el logo original y agregar el nuestro
     const tvLogo = container.querySelector("#tv-attr-logo");
@@ -583,15 +593,23 @@ export function Chart({ data, interval, selectedCrypto }) {
       attributeFilter: ["class"],
     });
 
+    chartRef.current = chart;
+
     return () => {
       observer.disconnect();
       resizeObserver.disconnect();
+      window.removeEventListener("resize", handleResize);
       chart.remove();
       if (logoContainer && logoContainer.parentNode) {
         logoContainer.parentNode.removeChild(logoContainer);
       }
     };
   }, [data, activeIndicators]);
+
+  // Limpiar lastVisibleRangeRef cuando cambia la moneda
+  useEffect(() => {
+    lastVisibleRangeRef.current = null;
+  }, [selectedCrypto?.id]);
 
   // Efecto para calcular los datos de los subgráficos
   useEffect(() => {

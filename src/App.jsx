@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Header } from "./components/Header";
 import { Chart } from "./components/Chart";
 import { CoinList } from "./components/CoinList";
@@ -26,6 +26,9 @@ function App() {
   const [error, setError] = useState(null);
   const [interval, setInterval] = useState("1h");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Referencia para almacenar el último timestamp recibido
+  const lastTimestampRef = useRef(null);
 
   useEffect(() => {
     if (selectedCrypto) {
@@ -69,6 +72,7 @@ function App() {
     if (!selectedCrypto) return;
 
     const unsubscribe = subscribeToPrice(selectedCrypto.symbol, (update) => {
+      // Actualizar el listado y el crypto seleccionado
       setCryptos((prevCryptos) =>
         prevCryptos.map((crypto) =>
           crypto.symbol === selectedCrypto.symbol
@@ -82,20 +86,41 @@ function App() {
         ...update,
       }));
 
+      // Actualizar el gráfico
       if (chartData && chartData.length > 0) {
         const newPrice = update.current_price;
-        setChartData((prevData) => {
-          const lastCandle = [...prevData[prevData.length - 1]];
-          lastCandle[4] = newPrice;
-          lastCandle[2] = Math.max(lastCandle[2], newPrice);
-          lastCandle[3] = Math.min(lastCandle[3], newPrice);
-          return [...prevData.slice(0, -1), lastCandle];
-        });
+        const currentTime = Date.now();
+        const intervalMs = getIntervalInMs(interval);
+        const lastCandle = chartData[chartData.length - 1];
+        const lastCandleTime = lastCandle[0];
+
+        // Comprobar si necesitamos crear una nueva vela
+        if (currentTime >= lastCandleTime + intervalMs) {
+          // Crear una nueva vela
+          const newCandle = [
+            lastCandleTime + intervalMs, // timestamp
+            newPrice, // open
+            newPrice, // high
+            newPrice, // low
+            newPrice, // close
+          ];
+
+          setChartData((prevData) => [...prevData, newCandle]);
+        } else {
+          // Actualizar la última vela
+          setChartData((prevData) => {
+            const lastCandle = [...prevData[prevData.length - 1]];
+            lastCandle[4] = newPrice; // close
+            lastCandle[2] = Math.max(lastCandle[2], newPrice); // high
+            lastCandle[3] = Math.min(lastCandle[3], newPrice); // low
+            return [...prevData.slice(0, -1), lastCandle];
+          });
+        }
       }
     });
 
     return () => unsubscribe();
-  }, [selectedCrypto?.symbol]);
+  }, [selectedCrypto?.symbol, interval]);
 
   useEffect(() => {
     if (!selectedCrypto) return;
@@ -115,6 +140,22 @@ function App() {
     fetchChartData();
   }, [selectedCrypto?.id, interval]);
 
+  // Función auxiliar para convertir el intervalo a milisegundos
+  const getIntervalInMs = (interval) => {
+    const value = parseInt(interval.slice(0, -1));
+    const unit = interval.slice(-1);
+    switch (unit) {
+      case "m":
+        return value * 60 * 1000;
+      case "h":
+        return value * 60 * 60 * 1000;
+      case "d":
+        return value * 24 * 60 * 60 * 1000;
+      default:
+        return 60 * 60 * 1000; // 1h por defecto
+    }
+  };
+
   // Función para formatear el precio según su magnitud
   const formatPrice = (price) => {
     if (price < 0.00001) return price.toFixed(8);
@@ -125,6 +166,55 @@ function App() {
     if (price < 10) return price.toFixed(3);
     return price.toFixed(2);
   };
+
+  // Prevenir el scroll automático cuando el menú móvil está abierto
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    const preventPullToRefresh = (e) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const startY = touch.screenY;
+
+      const handleTouchMove = (e) => {
+        const moveY = e.touches[0].screenY;
+        const direction = moveY - startY;
+
+        if (direction > 0 && window.scrollY === 0) {
+          e.preventDefault();
+        }
+      };
+
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
+      document.addEventListener(
+        "touchend",
+        () => {
+          document.removeEventListener("touchmove", handleTouchMove);
+        },
+        { once: true }
+      );
+    };
+
+    document.addEventListener("touchstart", preventPullToRefresh, {
+      passive: false,
+    });
+
+    return () => {
+      document.removeEventListener("touchstart", preventPullToRefresh);
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -151,9 +241,9 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Header />
-      <main className="container py-4 px-4 md:py-8 md:px-8">
+      <main className="container py-4 px-4 md:py-8 md:px-8 relative">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
           <div className="col-span-1 md:col-span-9 order-1">
             {selectedCrypto && (
@@ -219,36 +309,41 @@ function App() {
         </div>
       </main>
 
-      <button
-        onClick={() => setIsMobileMenuOpen(true)}
-        className="md:hidden fixed bottom-6 right-6 bg-primary text-primary-foreground rounded-full p-2 shadow-lg z-20 transition-transform hover:scale-105 active:scale-95"
-      >
-        <img
-          src={selectedCrypto?.image}
-          alt={selectedCrypto?.name}
-          className="w-8 h-8 rounded-full"
-          onError={(e) => {
-            e.target.src = `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@1a63530be6e374711a8554f31b17e4cb92c25fa5/128/color/generic.png`;
-          }}
-        />
-      </button>
-
+      {/* Menú móvil */}
       <div
         className={`md:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-30 transition-opacity duration-200 ${
           isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         onClick={() => setIsMobileMenuOpen(false)}
+        style={{ touchAction: "pan-y pinch-zoom" }}
       >
         <div
           className={`fixed right-0 top-[64px] h-[calc(100%-64px)] w-3/4 bg-card shadow-xl transition-transform duration-200 flex flex-col ${
             isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
           onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+            touchAction: "pan-y pinch-zoom",
+          }}
         >
-          <div className="absolute bottom-6 right-6">
+          <div className="flex-1 p-4 pb-24">
+            <CoinList
+              coins={cryptos}
+              selectedCoin={selectedCrypto}
+              onSelectCoin={(coin) => {
+                setSelectedCrypto(coin);
+                setIsMobileMenuOpen(false);
+              }}
+              isMobile={true}
+            />
+          </div>
+          <div className="sticky bottom-6 right-6 p-4 bg-card">
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="bg-primary text-primary-foreground rounded-full p-4 shadow-lg"
+              className="w-full bg-primary text-primary-foreground rounded-full p-4 shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -266,19 +361,23 @@ function App() {
               </svg>
             </button>
           </div>
-          <div className="flex-1 p-4 pb-24 h-full overflow-hidden">
-            <CoinList
-              coins={cryptos}
-              selectedCoin={selectedCrypto}
-              onSelectCoin={(coin) => {
-                setSelectedCrypto(coin);
-                setIsMobileMenuOpen(false);
-              }}
-              isMobile={true}
-            />
-          </div>
         </div>
       </div>
+
+      {/* Botón flotante para móvil */}
+      <button
+        onClick={() => setIsMobileMenuOpen(true)}
+        className="md:hidden fixed bottom-6 right-6 bg-primary text-primary-foreground rounded-full p-2 shadow-lg z-20 transition-transform hover:scale-105 active:scale-95"
+      >
+        <img
+          src={selectedCrypto?.image}
+          alt={selectedCrypto?.name}
+          className="w-8 h-8 rounded-full"
+          onError={(e) => {
+            e.target.src = `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@1a63530be6e374711a8554f31b17e4cb92c25fa5/128/color/generic.png`;
+          }}
+        />
+      </button>
     </div>
   );
 }
