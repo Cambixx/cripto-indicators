@@ -39,17 +39,54 @@ export function UltimateMacdChart({
   const upSoundRef = useRef(new Audio(alertUpSound));
   const downSoundRef = useRef(new Audio(alertDownSound));
 
-  // Configurar volumen de los sonidos
+  // Crear los elementos de audio una sola vez
   useEffect(() => {
-    upSoundRef.current.volume = 0.5;
-    downSoundRef.current.volume = 0.5;
+    // Crear nuevos elementos de audio
+    const upAudio = new Audio(alertUpSound);
+    const downAudio = new Audio(alertDownSound);
+
+    // Configurar los elementos
+    upAudio.preload = "auto";
+    downAudio.preload = "auto";
+    upAudio.volume = 0.5;
+    downAudio.volume = 0.5;
+
+    // Asignar a las referencias
+    upSoundRef.current = upAudio;
+    downSoundRef.current = downAudio;
 
     // Cleanup
     return () => {
-      upSoundRef.current.pause();
-      downSoundRef.current.pause();
+      upAudio.pause();
+      downAudio.pause();
+      upAudio.remove();
+      downAudio.remove();
     };
   }, []);
+
+  // Función para reproducir sonido
+  const playSound = (isUpCross) => {
+    const audio = isUpCross ? upSoundRef.current : downSoundRef.current;
+
+    // Crear una promesa para manejar la reproducción
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          // La reproducción se inició correctamente
+          console.log("Sound played successfully");
+        })
+        .catch((error) => {
+          // La reproducción falló
+          console.warn("Error playing sound:", error);
+          // Intentar reproducir de nuevo después de un momento
+          setTimeout(() => {
+            audio.play().catch((e) => console.warn("Retry failed:", e));
+          }, 100);
+        });
+    }
+  };
 
   // Función para calcular el volumen promedio
   const calculateAverageVolume = (data, period) => {
@@ -293,43 +330,34 @@ export function UltimateMacdChart({
       lastShownCrossRef.current !==
         `${latestCross.time}-${latestCross.macdAboveSignal}`
     ) {
-      const currentIndex = data.findIndex((d) => d.time === latestCross.time);
-      const validation = validateSignal(
-        data,
-        currentIndex,
-        latestCross.macdAboveSignal
-      );
+      const symbol = selectedCrypto?.symbol.toUpperCase() || "Crypto";
 
-      if (validation.isValid) {
-        const symbol = selectedCrypto?.symbol.toUpperCase() || "Crypto";
+      // Intentar reproducir el sonido
+      playSound(latestCross.macdAboveSignal);
 
-        // Reproducir sonido
-        if (latestCross.macdAboveSignal) {
-          upSoundRef.current
-            .play()
-            .catch((e) => console.warn("Error playing sound:", e));
-        } else {
-          downSoundRef.current
-            .play()
-            .catch((e) => console.warn("Error playing sound:", e));
-        }
+      // Mostrar modal
+      setModalConfig({
+        isOpen: true,
+        type: latestCross.macdAboveSignal ? "green" : "red",
+        message: `
+          ${
+            latestCross.macdAboveSignal
+              ? `Posible cambio de tendencia alcista en ${symbol}`
+              : `Posible cambio de tendencia bajista en ${symbol}`
+          }
+          
+          Detalles:
+          - MACD ha cruzado ${
+            latestCross.macdAboveSignal ? "por encima" : "por debajo"
+          } de la línea de señal
+          - Precio actual: $${selectedCrypto?.current_price}
+          - Variación 24h: ${selectedCrypto?.price_change_percentage_24h.toFixed(
+            2
+          )}%
+        `,
+      });
 
-        // Mostrar modal con detalles
-        setModalConfig({
-          isOpen: true,
-          type: latestCross.macdAboveSignal ? "green" : "red",
-          message: `
-            ${
-              latestCross.macdAboveSignal
-                ? `Posible cambio de tendencia alcista en ${symbol}`
-                : `Posible cambio de tendencia bajista en ${symbol}`
-            }
-            
-            Confirmaciones:
-            ${Object.values(validation.details).join("\n")}
-          `,
-        });
-      }
+      lastShownCrossRef.current = `${latestCross.time}-${latestCross.macdAboveSignal}`;
     }
 
     return () => {
