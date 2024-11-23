@@ -246,29 +246,15 @@ export async function getTopCryptos(limit = 20) {
         const highPrice = Number(ticker.highPrice);
         const lowPrice = Number(ticker.lowPrice);
 
-        const priceFilter = symbolInfo[ticker.symbol]?.filters.find(
-          (f) => f.filterType === "PRICE_FILTER"
-        );
-        const tickSize = priceFilter
-          ? Number(priceFilter.tickSize)
-          : 0.00000001;
-
-        const roundedPrice = Math.round(currentPrice / tickSize) * tickSize;
-
         return {
           id: baseAsset.toLowerCase(),
-          symbol: baseAsset.toLowerCase(),
+          symbol: baseAsset,
           name: CRYPTO_NAMES[baseAsset] || baseAsset,
-          current_price: roundedPrice,
+          current_price: currentPrice,
           image: `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@1a63530be6e374711a8554f31b17e4cb92c25fa5/128/color/${baseAsset.toLowerCase()}.png`,
           price_change_percentage_24h: priceChangePercent,
-          market_cap: quoteVolume * roundedPrice,
-          total_volume: volume * roundedPrice,
-          high_24h: highPrice,
-          low_24h: lowPrice,
+          total_volume: volume * currentPrice,
           price_change_24h: priceChange,
-          market_cap_rank: 0,
-          tickSize: tickSize,
         };
       })
       .filter((pair) => !isNaN(pair.current_price) && pair.current_price > 0)
@@ -355,6 +341,27 @@ export async function getCryptoChart(coinId, interval = "1h") {
     return formattedData;
   } catch (error) {
     console.error("Error fetching crypto chart data:", error.message);
+    throw error;
+  }
+}
+
+// Función para obtener la lista de criptomonedas
+export async function getCryptoList() {
+  try {
+    // Usar getTopCryptos en lugar de CoinGecko
+    const cryptos = await getTopCryptos(100);
+    return cryptos.map((crypto) => ({
+      id: crypto.symbol, // Usar symbol como id para mantener consistencia con Binance
+      symbol: crypto.symbol.toLowerCase(),
+      name: crypto.name,
+      image: crypto.image,
+      current_price: crypto.current_price,
+      price_change_24h: crypto.price_change_24h,
+      price_change_percentage_24h: crypto.price_change_percentage_24h,
+      total_volume: crypto.total_volume,
+    }));
+  } catch (error) {
+    console.error("Error in getCryptoList:", error);
     throw error;
   }
 }
