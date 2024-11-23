@@ -18,6 +18,8 @@ const ULTIMATE_MACD_CONFIG = {
   consecutiveBars: 3, // Número de velas consecutivas en la misma dirección
 };
 
+import { sendTelegramNotification } from "../services/telegramService";
+
 export function UltimateMacdChart({
   data,
   height = 200,
@@ -391,33 +393,44 @@ export function UltimateMacdChart({
         `${latestCross.time}-${latestCross.macdAboveSignal}`
     ) {
       const symbol = selectedCrypto?.symbol.toUpperCase() || "Crypto";
+      const price = selectedCrypto?.current_price;
+      const change24h = selectedCrypto?.price_change_percentage_24h.toFixed(2);
 
       // Intentar reproducir el sonido con un pequeño retraso para móvil
       setTimeout(() => {
         playSound(latestCross.macdAboveSignal);
       }, 100);
 
+      // Mensaje para el modal y Telegram
+      const message = `
+${
+  latestCross.macdAboveSignal ? "🟢 Señal Alcista" : "🔴 Señal Bajista"
+} - ${symbol}
+
+💰 Precio: $${price}
+📊 Cambio 24h: ${change24h}%
+
+⚠️ MACD ha cruzado ${
+        latestCross.macdAboveSignal ? "por encima" : "por debajo"
+      } de la línea de señal
+
+🔍 Detalles de la señal:
+${Object.entries(
+  validateSignal(data, data.length - 1, latestCross.macdAboveSignal).details
+)
+  .map(([key, value]) => `- ${value}`)
+  .join("\n")}
+      `.trim();
+
       // Mostrar modal
       setModalConfig({
         isOpen: true,
         type: latestCross.macdAboveSignal ? "green" : "red",
-        message: `
-          ${
-            latestCross.macdAboveSignal
-              ? `Posible cambio de tendencia alcista en ${symbol}`
-              : `Posible cambio de tendencia bajista en ${symbol}`
-          }
-          
-          Detalles:
-          - MACD ha cruzado ${
-            latestCross.macdAboveSignal ? "por encima" : "por debajo"
-          } de la línea de señal
-          - Precio actual: $${selectedCrypto?.current_price}
-          - Variación 24h: ${selectedCrypto?.price_change_percentage_24h.toFixed(
-            2
-          )}%
-        `,
+        message: message,
       });
+
+      // Enviar notificación a Telegram
+      sendTelegramNotification(message);
 
       lastShownCrossRef.current = `${latestCross.time}-${latestCross.macdAboveSignal}`;
     }
