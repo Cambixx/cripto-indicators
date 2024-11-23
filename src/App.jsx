@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { Header } from "./components/Header";
 import { Chart } from "./components/Chart";
 import { CoinList } from "./components/CoinList";
-import { getTopCryptos, getCryptoChart, subscribeToPrice } from "./lib/api";
+import {
+  getTopCryptos,
+  getCryptoChart,
+  subscribeToPrice,
+  getCryptoList,
+} from "./lib/api";
 import "./styles/globals.css";
 
 const INTERVALS = [
@@ -30,6 +35,9 @@ function App() {
   // Referencia para almacenar el último timestamp recibido
   const lastTimestampRef = useRef(null);
 
+  // Referencia para almacenar la suscripción al precio
+  const priceSubscriptionRef = useRef(null);
+
   useEffect(() => {
     if (selectedCrypto) {
       localStorage.setItem("selectedCrypto", JSON.stringify(selectedCrypto));
@@ -37,40 +45,41 @@ function App() {
   }, [selectedCrypto]);
 
   useEffect(() => {
-    async function fetchInitialData() {
+    const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        setError(null);
-        const data = await getTopCryptos();
-        setCryptos(data);
 
-        const savedCrypto = localStorage.getItem("selectedCrypto");
-        if (savedCrypto) {
-          const parsed = JSON.parse(savedCrypto);
-          const updated = data.find((c) => c.id === parsed.id);
-          if (updated) {
-            setSelectedCrypto(updated);
-            return;
-          }
+        // Obtener lista de criptomonedas
+        const cryptoList = await getTopCryptos(100);
+        setCryptos(cryptoList);
+
+        // Si no hay moneda seleccionada, seleccionar Bitcoin por defecto
+        if (!selectedCrypto) {
+          const defaultCrypto =
+            cryptoList.find((c) => c.symbol === "BTC") || cryptoList[0];
+          setSelectedCrypto(defaultCrypto);
         }
-        if (data.length > 0) {
-          setSelectedCrypto(data[0]);
-        }
-      } catch (err) {
-        setError(
-          "Error al cargar los datos. Por favor, intenta de nuevo más tarde."
-        );
-        console.error("Error fetching data:", err);
+      } catch (error) {
+        console.error("Error fetching initial data:", error);
+        setError("Error al cargar los datos. Por favor, intente nuevamente.");
       } finally {
         setIsLoading(false);
       }
-    }
+    };
+
     fetchInitialData();
-  }, []);
+  }, []); // Este efecto solo se ejecuta al montar el componente
 
+  // Efecto separado para manejar la suscripción al precio
   useEffect(() => {
-    if (!selectedCrypto) return;
+    if (!selectedCrypto?.symbol) return;
 
+    // Cancelar suscripción anterior si existe
+    if (priceSubscriptionRef.current) {
+      priceSubscriptionRef.current();
+    }
+
+    // Crear nueva suscripción
     const unsubscribe = subscribeToPrice(selectedCrypto.symbol, (update) => {
       // Actualizar el listado y el crypto seleccionado
       setCryptos((prevCryptos) =>
@@ -119,8 +128,15 @@ function App() {
       }
     });
 
-    return () => unsubscribe();
-  }, [selectedCrypto?.symbol, interval]);
+    // Guardar la referencia de la suscripción
+    priceSubscriptionRef.current = unsubscribe;
+
+    return () => {
+      if (priceSubscriptionRef.current) {
+        priceSubscriptionRef.current();
+      }
+    };
+  }, [selectedCrypto?.symbol, interval]); // Se ejecuta cuando cambia la moneda seleccionada o el intervalo
 
   useEffect(() => {
     if (!selectedCrypto) return;
